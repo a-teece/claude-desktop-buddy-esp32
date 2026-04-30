@@ -102,7 +102,7 @@ bool hwAudioInit() {
 
   s_beepQ = xQueueCreate(8, sizeof(BeepReq));
   if (!s_beepQ) return false;
-  xTaskCreatePinnedToCore(beepTask, "beep", 4096, nullptr, 5, nullptr, 1);
+  xTaskCreatePinnedToCore(beepTask, "beep", 4096, nullptr, 5, nullptr, tskNO_AFFINITY);
   return true;
 }
 
