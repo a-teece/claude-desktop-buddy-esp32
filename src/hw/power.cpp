@@ -16,6 +16,18 @@ bool hwPowerInit() {
   s_pmu.enableVbusVoltageMeasure();
   s_pmu.enableBattVoltageMeasure();
   s_pmu.enableTemperatureMeasure();
+
+  // ALDO3 → display rail on all three boards. enableALDO3() is idempotent.
+  s_pmu.enableALDO3();
+
+#if BOARD_AXP_PWRON_4S_OFF
+  // 2.16: configure AXP to power off on 4 s PWRON-hold (the PWR key is
+  // the only software-configurable shutdown path on this board).
+  // 0x22 reg: PWRON > OFFLEVEL as POWEROFF source. 0x27 reg: 4s timing.
+  s_pmu.writeRegister(0x22, 0b110);
+  s_pmu.writeRegister(0x27, 0x10);
+#endif
+
   s_pmu.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
   // AXP2101::enableIRQ() takes chip-specific bit positions, not the
   // cross-chip XPOWERS_PWR_BTN_* enums (which would write the wrong
