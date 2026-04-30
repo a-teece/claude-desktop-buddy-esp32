@@ -19,3 +19,6 @@ void hwPowerOff();
 // don't match the XPOWERS_PWR_BTN_* enum values.
 bool hwAxpPekeyShortPress();
 bool hwAxpPekeyLongPress();
+
+#include <XPowersLib.h>
+XPowersPMU* hwPmuRef();   // raw access for boards that need direct register / rail control

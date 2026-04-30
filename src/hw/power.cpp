@@ -69,3 +69,5 @@ bool hwAxpPekeyLongPress() {
   if (hit) s_pmu.clearIrqStatus();
   return hit;
 }
+
+XPowersPMU* hwPmuRef() { return &s_pmu; }
