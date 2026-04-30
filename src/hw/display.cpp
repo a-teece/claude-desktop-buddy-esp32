@@ -12,6 +12,41 @@ static Arduino_Canvas*   s_canvas = nullptr;
 
 static const uint8_t BRIGHT_LUT[5] = { 50, 100, 150, 200, 255 };
 
+#if BOARD_DISPLAY_SH8601_VENDOR_INIT
+// LVGL demo SH8601 init for the 2.16 panel revision.
+// Source: ~/Downloads/ESP32-C6-Touch-AMOLED-2.16/02_Example/Arduino-v3.3.3/08_LVGL_V8_Test/bsp_lvgl_port.cpp:25-41
+// Re-runs after Arduino_SH8601's basic init to override pixel format,
+// MADCTL, gamma / power-related vendor commands, set the column/row
+// range to the full 480×480, push brightness to max, and re-issue
+// DISPON. Without this the panel inits but stays dark.
+static void sh8601_vendor_init(Arduino_DataBus* bus) {
+  static const uint8_t init_ops[] = {
+    BEGIN_WRITE,
+    WRITE_COMMAND_8, 0x11,            // SLPOUT (re-issue, harmless)
+    END_WRITE,
+    DELAY, 120,
+    BEGIN_WRITE,
+    WRITE_C8_D8, 0xFE, 0x20,          // page select MFR
+    WRITE_C8_D8, 0x19, 0x10,
+    WRITE_C8_D8, 0x1C, 0xA0,
+    WRITE_C8_D8, 0xFE, 0x00,          // back to USER page
+    WRITE_C8_D8, 0xC4, 0x80,
+    WRITE_C8_D8, 0x3A, 0x55,          // pixel format (override 0x05 → 0x55)
+    WRITE_C8_D8, 0x35, 0x00,          // tearing line
+    WRITE_C8_D8, 0x36, 0x30,          // MADCTL (override lib's 0x00)
+    WRITE_C8_D8, 0x53, 0x20,          // CABC / brightness control
+    WRITE_C8_D8, 0x51, 0xFF,          // brightness max
+    WRITE_C8_D8, 0x63, 0xFF,
+    WRITE_COMMAND_8, 0x2A, WRITE_BYTES, 4, 0x00, 0x00, 0x01, 0xDF,  // col 0..479
+    WRITE_COMMAND_8, 0x2B, WRITE_BYTES, 4, 0x00, 0x00, 0x01, 0xDF,  // row 0..479
+    WRITE_COMMAND_8, 0x29,            // DISPON (re-issue with full config)
+    END_WRITE,
+    DELAY, 50,
+  };
+  bus->batchOperation(init_ops, sizeof(init_ops));
+}
+#endif
+
 bool hwDisplayInit() {
   s_bus = new Arduino_ESP32QSPI(
     PIN_LCD_CS, PIN_LCD_SCLK, PIN_LCD_SDIO0, PIN_LCD_SDIO1,
@@ -30,32 +65,19 @@ bool hwDisplayInit() {
   // canvas->begin() internally calls gfx->begin() which calls bus init.
   // Calling them separately would double-init the SPI bus → ESP_ERR_INVALID_STATE.
   if (!s_canvas->begin()) { Serial.println("hwDisplay: canvas begin failed"); return false; }
-#if BOARD_DISPLAY_SH8601_VENDOR_INIT
-  // The 2.16 panel revision needs extra vendor init beyond what
-  // Arduino_SH8601's tftInit sends. Page-select dance + gamma /
-  // brightness register configuration. Sequence from the LVGL v8
-  // demo at .../02_Example/Arduino-v3.3.3/08_LVGL_V8_Test/bsp_lvgl_port.cpp.
-  s_bus->beginWrite();
-  s_bus->writeC8D8(0xFE, 0x20);  // page select MFR
-  s_bus->writeC8D8(0x19, 0x10);
-  s_bus->writeC8D8(0x1C, 0xA0);
-  s_bus->writeC8D8(0xFE, 0x00);  // back to USER page
-  s_bus->writeC8D8(0xC4, 0x80);
-  s_bus->writeC8D8(0x3A, 0x55);  // pixel format (16bpp with control flags)
-  s_bus->writeC8D8(0x35, 0x00);  // tearing line
-  s_bus->writeC8D8(0x36, 0x30);  // MADCTL
-  s_bus->writeC8D8(0x53, 0x20);  // CABC / dimming control
-  s_bus->writeC8D8(0x51, 0xFF);  // brightness max
-  s_bus->writeC8D8(0x63, 0xFF);
-  s_bus->endWrite();
-  delay(10);
-#endif
   // UTF-8 decode for u8g2 CJK fonts — without this, print() treats each
   // byte of a multi-byte codepoint as its own glyph lookup → mojibake.
   s_canvas->setUTF8Print(true);
+#if BOARD_DISPLAY_SH8601_VENDOR_INIT
+  sh8601_vendor_init(s_bus);
+  // The vendor init ends with brightness max (0x51 0xFF) and DISPON.
+  // Don't run the setBrightness(0)/(150) dance — its low value kept
+  // this panel revision dark.
+#else
   s_gfx->setBrightness(0);   // black first frame to avoid white flash
   delay(20);
   s_gfx->setBrightness(150);  // default mid-brightness; main may override later
+#endif
   return true;
 }
 
