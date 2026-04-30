@@ -20,6 +20,20 @@ bool hwPowerInit() {
   // ALDO3 → display rail on all three boards. enableALDO3() is idempotent.
   s_pmu.enableALDO3();
 
+#if BOARD_AXP_ENABLE_AUX_LDOS
+  // 2.16: ALDO2 powers DSI_PWR_EN (display power-enable signal via R13);
+  // ALDO1/4 power MIC bias and secondary sensor rails. Without this the
+  // panel stays dark even with ALDO3 enabled (DSI_PWR_EN floats).
+  // Voltages match the XiaoZhi 2.16 reference: ALDO1..4 = 3.3V, DCDC1 = 3.3V.
+  s_pmu.setDC1Voltage(3300);
+  s_pmu.setALDO1Voltage(3300);
+  s_pmu.setALDO2Voltage(3300);
+  s_pmu.setALDO4Voltage(3300);
+  s_pmu.enableALDO1();
+  s_pmu.enableALDO2();
+  s_pmu.enableALDO4();
+#endif
+
 #if BOARD_AXP_PWRON_4S_OFF
   // 2.16: configure AXP to power off on 4 s PWRON-hold (the PWR key is
   // the only software-configurable shutdown path on this board).

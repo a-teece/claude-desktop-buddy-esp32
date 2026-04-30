@@ -96,3 +96,4 @@
 #define BOARD_BTN_THIRD            0
 #define BOARD_KEY1_ACTIVE_HIGH     0
 #define BOARD_HAS_KEY2             0
+#define BOARD_AXP_ENABLE_AUX_LDOS  0
